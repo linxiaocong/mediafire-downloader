@@ -20,36 +20,68 @@ def resolve_ouo_url(page, url, headless=True):
     print(f"[*] Detected ouo.io shortener link: {url}")
     print("[*] Navigating to ouo.io...")
     page.goto(url, wait_until="domcontentloaded")
-    page.wait_for_timeout(2000)
+    page.wait_for_timeout(3000)
     
-    # Step 1: Click "I'm a human"
-    button = page.get_by_role("button", name="I'm a human", exact=False)
-    if button.count() == 0:
-        button = page.get_by_role("button", name="I'M A HUMAN", exact=False)
-    if button.count() == 0:
-        button = page.locator("button:has-text(\"I'm a human\")")
-    if button.count() == 0:
-        button = page.locator("button, input[type='submit']")
-        
-    if button.count() > 0:
-        try:
-            print(f"[*] Clicking '{button.first.text_content().strip()}' button...")
-            button.first.click()
+    timeout_limit = 45 if headless else 180
+    start_time = time.time()
+    cloudflare_warned = False
+    
+    # Step 1: Wait for initial Cloudflare Turnstile to clear if present on page load
+    print("[*] Checking for initial Cloudflare Turnstile challenge...")
+    while time.time() - start_time < timeout_limit:
+        title = page.title().lower()
+        if "just a moment" in title or "security verification" in title:
+            if not cloudflare_warned:
+                print("\n" + "="*70)
+                print("⚠️  CLOUDFLARE TURNSTILE CHALLENGE DETECTED ON LOAD!")
+                if not headless:
+                    print("👉 Please solve the verification checkbox in the open browser window.")
+                    print(f"👉 The script will wait up to {timeout_limit} seconds for you to check the box.")
+                else:
+                    print("👉 The script is running headlessly. Try running with --headful to manually solve this challenge.")
+                print("="*70 + "\n")
+                cloudflare_warned = True
+            else:
+                print("[*] Waiting for initial Turnstile verification to clear...")
             page.wait_for_timeout(3000)
-        except Exception as e:
-            print(f"[-] Click failed: {e}")
-            return None
-    else:
-        print("[-] Could not find 'I'm a human' button.")
+        else:
+            break
+            
+    # Step 2: Now wait for the "I'm a human" button to become visible and enabled
+    print("[*] Locating 'I'm a human' button...")
+    button = None
+    while time.time() - start_time < timeout_limit:
+        # Check standard locators
+        btn_loc = page.get_by_role("button", name="I'm a human", exact=False)
+        if btn_loc.count() == 0:
+            btn_loc = page.get_by_role("button", name="I'M A HUMAN", exact=False)
+        if btn_loc.count() == 0:
+            btn_loc = page.locator("button:has-text(\"I'm a human\")")
+        if btn_loc.count() == 0:
+            btn_loc = page.locator("button, input[type='submit']")
+            
+        if btn_loc.count() > 0 and btn_loc.first.is_visible() and btn_loc.first.is_enabled():
+            button = btn_loc.first
+            break
+            
+        page.wait_for_timeout(2000)
+        
+    if not button:
+        print("[-] Could not find 'I'm a human' button. Page might have blocked the request or redirected unexpectedly.")
         return None
         
-    # Step 2: Handle Cloudflare verification / countdown page
+    try:
+        print(f"[*] Clicking '{button.text_content().strip()}' button...")
+        button.click()
+        page.wait_for_timeout(3000)
+    except Exception as e:
+        print(f"[-] Click failed: {e}")
+        return None
+        
+    # Step 3: Handle Cloudflare verification / countdown page
     print("[*] Waiting for verification page / countdown...")
     btn_selector = "button#btn-main, a#btn-main, button:has-text('Get Link'), a:has-text('Get Link'), button:has-text('GET LINK'), a:has-text('GET LINK')"
     
-    # If running headfully, give the user up to 3 minutes to solve Turnstile
-    timeout_limit = 45 if headless else 180
-    start_time = time.time()
     get_link_btn = None
     cloudflare_warned = False
     
@@ -70,7 +102,7 @@ def resolve_ouo_url(page, url, headless=True):
         if "just a moment" in title or "security verification" in title:
             if not cloudflare_warned:
                 print("\n" + "="*70)
-                print("⚠️  CLOUDFLARE TURNSTILE CHALLENGE DETECTED!")
+                print("⚠️  CLOUDFLARE TURNSTILE CHALLENGE DETECTED ON COUNTDOWN!")
                 if not headless:
                     print("👉 Please solve the verification checkbox in the open browser window.")
                     print(f"👉 The script will wait up to {timeout_limit} seconds for you to check the box.")
@@ -87,7 +119,7 @@ def resolve_ouo_url(page, url, headless=True):
         print(f"[-] Timeout waiting for 'Get Link' button to appear after {timeout_limit} seconds.")
         return None
         
-    # Step 3: Click "Get Link"
+    # Step 4: Click "Get Link"
     print("[*] Clicking 'Get Link' button...")
     
     # We expect either a new page (popup) or a direct redirect in page
@@ -177,14 +209,22 @@ def download_file(url, output_dir, headless=True):
                     return False
                 url = resolved_url
                 print(f"[+] Successfully resolved shortener URL to: {url}")
-            else:
-                # Navigate to the MediaFire page
-                print("[*] Navigating to page...")
+            
+            # Ensure the Playwright page is actually loaded on the target MediaFire URL
+            if "mediafire.com" not in page.url or page.url != url:
+                print(f"[*] Loading Playwright page onto resolved URL: {url}")
                 page.goto(url, wait_until="domcontentloaded")
-                page.wait_for_timeout(2000)
+                page.wait_for_timeout(3000)
             
             title = page.title()
             print(f"[*] Page title: {title}")
+            
+            # Wait up to 15 seconds for the download button to render in the DOM
+            print("[*] Waiting for download button to render on page...")
+            try:
+                page.wait_for_selector("a#downloadButton, a.download_link, .downloadButton, text=Download", state="visible", timeout=15000)
+            except Exception:
+                print("[*] Timeout waiting for specific download button. Proceeding with fallback checks...")
             
             # Robust selector strategies for the main MediaFire download button
             selectors = [
