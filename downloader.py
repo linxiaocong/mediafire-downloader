@@ -11,6 +11,11 @@ import argparse
 import time
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
+try:
+    from bypass_ouo import bypass_ouo
+except ImportError:
+    bypass_ouo = None
+
 def resolve_ouo_url(page, url, headless=True):
     print(f"[*] Detected ouo.io shortener link: {url}")
     print("[*] Navigating to ouo.io...")
@@ -146,7 +151,23 @@ def download_file(url, output_dir, headless=True):
         try:
             # Check if this is an ouo.io link
             if "ouo.io" in url or "ouo.press" in url:
-                resolved_url = resolve_ouo_url(page, url, headless=headless)
+                resolved_url = None
+                
+                # 1. Attempt to bypass using bypass_ouo package
+                if bypass_ouo is not None:
+                    print("[*] Attempting to bypass ouo.io using bypass_ouo package...")
+                    try:
+                        resolved_url = bypass_ouo(url)
+                        if resolved_url:
+                            print(f"[+] Successfully resolved URL via bypass_ouo package: {resolved_url}")
+                    except Exception as e:
+                        print(f"[-] bypass_ouo package failed: {e}")
+                
+                # 2. Fallback to custom Playwright bypass if package failed
+                if not resolved_url:
+                    print("[*] Falling back to custom Playwright bypass...")
+                    resolved_url = resolve_ouo_url(page, url, headless=headless)
+                    
                 if not resolved_url:
                     print("[-] Error: Failed to resolve ouo.io shortener link.")
                     # Take screenshot for debugging

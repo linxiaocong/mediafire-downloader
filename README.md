@@ -1,13 +1,15 @@
 # 📥 OpenClaw Skill: MediaFire & ouo.io Downloader
 
-A premium, autonomous OpenClaw skill written in Python that leverages Playwright to automatically bypass URL shorteners (like `ouo.io` and `ouo.press`) and batch-download files from MediaFire.
+A premium, autonomous OpenClaw skill written in Python that leverages a hybrid bypass pipeline (`bypass_ouo` library + Playwright browser automation) to automatically bypass URL shorteners (like `ouo.io` and `ouo.press`) and batch-download files from MediaFire.
 
 ---
 
 ## ✨ Features
 
 - **MediaFire Downloader**: Locates and triggers downloads on MediaFire pages using a dynamic and robust set of fallback selectors.
-- **ouo.io Bypasser**: Automatically detects and handles `ouo.io` shortened links by executing the initial validation clicks and waiting for the redirection flow.
+- **Hybrid ouo.io Bypasser**: 
+  - **Primary**: Automatically attempts to resolve shortlinks using the **`bypass_ouo`** library via API requests.
+  - **Fallback**: Dynamically falls back to our robust **Playwright** browser solver if Cloudflare anti-bot blocks standard API requests.
 - **Advanced Stealth**: Emulates real user behaviors and strips away automation traces (like `navigator.webdriver`) to bypass aggressive Cloudflare Turnstile blocks.
 - **Batch Processing**: Supports downloading multiple links passed as command line arguments or importing them in bulk from a `.txt` file.
 - **Smart Retries & Timeouts**: Generous interactive timeouts (up to 3 minutes in headful mode) and full debugging screenshot generation on error.
@@ -20,7 +22,7 @@ A premium, autonomous OpenClaw skill written in Python that leverages Playwright
 mediafire-downloader/
 ├── SKILL.md            # OpenClaw skill descriptor & gateway runbook
 ├── README.md           # User documentation (this file)
-├── requirements.txt    # Skill dependencies (Playwright)
+├── requirements.txt    # Skill dependencies (Playwright, bypass-ouo, lxml)
 └── downloader.py       # Core automation script
 ```
 
@@ -43,7 +45,7 @@ source .venv/bin/activate
 ```
 
 ### 2. Install Dependencies
-Install Playwright and download the Chromium browser binaries:
+Install requirements (including `playwright`, `bypass-ouo`, and `lxml`) and download the Chromium browser binaries:
 
 ```bash
 # Install Python packages
@@ -77,7 +79,7 @@ python mediafire-downloader/downloader.py "https://www.mediafire.com/file/xxxxx/
 ```
 
 ### 2. Download from an ouo.io Link (Headful / Interactive)
-If a link contains an `ouo.io` or `ouo.press` shortener, you should run in `--headful` mode so you can interact with the Cloudflare checkbox:
+If a link contains an `ouo.io` or `ouo.press` shortener, you should run in `--headful` mode so you can interact with the Cloudflare checkbox if it falls back to Playwright:
 ```bash
 python mediafire-downloader/downloader.py "https://ouo.io/WU3GDY" --headful
 ```
@@ -100,7 +102,7 @@ python mediafire-downloader/downloader.py "https://www.mediafire.com/file/xxxxx/
 
 ### 1. Cloudflare Turnstile Verification Paused?
 > [!NOTE]
-> When `ouo.io` shows the verification screen, it requires a human to verify they are not a bot.
+> When the `bypass_ouo` library gets blocked by Cloudflare (403 Forbidden), the script will automatically fallback to the Playwright browser solver.
 > - **Solution**: Always append the `--headful` flag. When the browser pops up on your screen, click the "Verify you are human" checkbox. The script will wait up to **180 seconds** for you to do this, and will automatically continue immediately after you click it.
 
 ### 2. Immediate Redirect to Homepage?
