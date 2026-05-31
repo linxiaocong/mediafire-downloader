@@ -16,6 +16,110 @@ try:
 except ImportError:
     bypass_ouo = None
 
+def resolve_ouo_with_drission(url, headless=True):
+    print(f"[*] Detected ouo.io shortener link: {url}")
+    print("[*] Resolving using DrissionPage (Advanced anti-bot evasion)...")
+    
+    try:
+        from DrissionPage import ChromiumPage, ChromiumOptions
+    except ImportError:
+        print("[-] DrissionPage is not installed in the environment. Skipping DrissionPage solver.")
+        return None
+        
+    co = ChromiumOptions()
+    co.set_argument('--disable-blink-features=AutomationControlled')
+    co.set_user_agent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+    co.headless(headless)
+    
+    page = None
+    try:
+        page = ChromiumPage(addr_or_opts=co)
+        page.get(url)
+        
+        # Step 1: Wait for 'I'm a human' button (Cloudflare Turnstile bypass)
+        print("[*] Waiting for Cloudflare verification to clear...")
+        button = None
+        start_time = time.time()
+        timeout_limit = 45 if headless else 180
+        
+        while time.time() - start_time < timeout_limit:
+            # Check if we were redirected to MediaFire automatically
+            if "mediafire.com" in page.url:
+                print(f"[+] Automatically redirected to MediaFire: {page.url}")
+                return page.url
+                
+            for txt in ["I'm a human", "I'M A HUMAN"]:
+                try:
+                    ele = page.ele(f"text:{txt}", timeout=2)
+                    if ele and ele.is_displayed():
+                        button = ele
+                        break
+                except Exception:
+                    pass
+            if button:
+                break
+            page.wait(2)
+            
+        if not button:
+            print("[-] Timeout waiting for 'I'm a human' button to appear.")
+            return None
+            
+        print(f"[*] Clicking '{button.text.strip()}' button...")
+        button.click(by_js=True)
+        
+        # Step 2: Wait for countdown and 'Get Link' button
+        print("[*] Waiting for countdown and 'Get Link' button...")
+        get_link_btn = None
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout_limit:
+            if "mediafire.com" in page.url:
+                return page.url
+                
+            try:
+                # Ouo.io button has id "btn-main"
+                ele = page.ele("#btn-main", timeout=2)
+                if ele and ele.is_enabled() and ele.is_displayed():
+                    get_link_btn = ele
+                    break
+            except Exception:
+                pass
+            page.wait(2)
+            
+        if not get_link_btn:
+            print("[-] Timeout waiting for 'Get Link' button.")
+            return None
+            
+        print("[*] Clicking 'Get Link' button...")
+        get_link_btn.click(by_js=True)
+        page.wait(4)
+        
+        # Ouo.io might open popups, so check all open tabs
+        final_url = None
+        for tab in page.tabs:
+            if "mediafire.com" in tab.url:
+                final_url = tab.url
+                break
+                
+        if not final_url:
+            final_url = page.url
+            
+        if "mediafire.com" in final_url:
+            return final_url
+        else:
+            print(f"[-] Bypassed but ended up at unexpected URL: {final_url}")
+            return None
+            
+    except Exception as e:
+        print(f"[-] DrissionPage resolution failed: {e}")
+        return None
+    finally:
+        if page:
+            try:
+                page.quit()
+            except Exception:
+                pass
+
 def resolve_ouo_url(page, url, headless=True):
     print(f"[*] Detected ouo.io shortener link: {url}")
     print("[*] Navigating to ouo.io...")
@@ -185,7 +289,7 @@ def download_file(url, output_dir, headless=True):
             if "ouo.io" in url or "ouo.press" in url:
                 resolved_url = None
                 
-                # 1. Attempt to bypass using bypass_ouo package
+                # 1. Attempt to bypass using bypass_ouo package (fast API requests)
                 if bypass_ouo is not None:
                     print("[*] Attempting to bypass ouo.io using bypass_ouo package...")
                     try:
@@ -195,7 +299,17 @@ def download_file(url, output_dir, headless=True):
                     except Exception as e:
                         print(f"[-] bypass_ouo package failed: {e}")
                 
-                # 2. Fallback to custom Playwright bypass if package failed
+                # 2. Secondary attempt using DrissionPage (Advanced anti-bot evasion)
+                if not resolved_url:
+                    print("[*] Attempting to bypass ouo.io using DrissionPage...")
+                    try:
+                        resolved_url = resolve_ouo_with_drission(url, headless=headless)
+                        if resolved_url:
+                            print(f"[+] Successfully resolved URL via DrissionPage: {resolved_url}")
+                    except Exception as e:
+                        print(f"[-] DrissionPage resolution failed: {e}")
+                
+                # 3. Tertiary fallback to custom Playwright bypass if previous options failed
                 if not resolved_url:
                     print("[*] Falling back to custom Playwright bypass...")
                     resolved_url = resolve_ouo_url(page, url, headless=headless)
