@@ -1,59 +1,60 @@
+# 📥 MediaFire Downloader (OpenClaw Skill)
+
+A premium OpenClaw skill that downloads files from MediaFire. It now includes:
+
+- **Progress Indicators** – Real‑time `tqdm` progress bars.
+- **Folder Support** – Accept MediaFire folder URLs and automatically enumerate and download all contained files (including nested folders).
+- **Streamlined Dependencies** – Only `playwright`, `requests`, and `tqdm` are required.
+
 ---
-name: mediafire-downloader
-description: Download files from one or more MediaFire or ouo.io/ouo.press URLs using a three-tier hybrid bypass (bypass_ouo + DrissionPage + Playwright) pipeline.
-metadata: {"openclaw": {"emoji": "📥", "requires": {"bins": ["python"]}}}
+
+## ✨ Features
+
+- **MediaFire File Downloader** – Robust selector fallback to locate and click the download button.
+- **Progress Bar** – Streams downloads via `requests` with a `tqdm` progress bar showing size, speed, and ETA.
+- **Folder URL Handling** – Detect `mediafire.com/folder/...` links, use MediaFire's public API to list files recursively, and download each file.
+- **Headful / Headless Modes** – Run invisibly (default) or with `--headful` for debugging or Cloudflare challenges.
+- **Batch Processing** – Accept multiple URLs via command‑line arguments, a text file, or stdin.
+
 ---
 
-# MediaFire & ouo.io Downloader Skill
+## 📁 Directory Structure
 
-This skill allows the OpenClaw agent to autonomously download files from one or more MediaFire links or bypass URL shorteners (like `ouo.io` and `ouo.press`) that redirect to MediaFire. It utilizes a highly resilient, three-tier hybrid bypass strategy combining the `bypass_ouo` API library, `DrissionPage` (Advanced CDP anti-bot evasion), and a stealth-enabled Playwright browser instance.
-
-## When to Use
-Use this skill when a user provides one or multiple MediaFire links or shortened URLs (such as `ouo.io` or `ouo.press`) and requests to download, fetch, retrieve, or grab the files.
-
-## Setup Requirements
-This skill requires the dependencies specified in the requirements file, local Google Chrome browser, and Playwright's Chromium browser binaries:
-1. Install Python packages (Playwright, bypass-ouo, DrissionPage, and lxml):
-   ```bash
-   pip install -r {baseDir}/requirements.txt
-   ```
-2. Install Chromium binaries:
-   ```bash
-   python -m playwright install chromium
-   ```
-
-## Usage
-The skill can be executed directly as a Python script:
-
-### Command Line Arguments
-* `urls` (positional): One or more MediaFire or `ouo.io` URLs.
-* `-f`, `--file`: Path to a text file containing one URL per line.
-* `-o`, `--output`: Target folder for downloaded files (defaults to `downloads`).
-* `--headful`: Run in visible browser mode (essential when running in interactive sessions to allow Cloudflare passive checks to solve or manual checkbox checks to clear).
-
-### Execution Examples
-
-**Direct URL(s):**
-```bash
-python {baseDir}/downloader.py "https://www.mediafire.com/file/example1/file.zip" -o downloads
+```
+mediafire-downloader/
+├── SKILL.md            # This descriptor (you are reading it)
+├── README.md           # User documentation
+├── requirements.txt    # Dependencies (playwright, requests, tqdm)
+└── downloader.py       # Core automation script
 ```
 
-**URL Shortener (e.g. ouo.io) Bypassing (Interactive):**
+---
+
+## 🚀 Setup & Installation
+
+1. Create a virtual environment and activate it.
+2. Install dependencies with `pip install -r requirements.txt`.
+3. Install Playwright Chromium binaries via `python -m playwright install chromium`.
+
+---
+
+## 💻 Usage
+
 ```bash
-python {baseDir}/downloader.py "https://ouo.io/WU3GDY" --headful
+python downloader.py <url1> <url2> ...            # Direct file URLs
+python downloader.py "https://www.mediafire.com/folder/KEY"   # Folder URL
+python downloader.py -f urls.txt -o my_downloads   # Batch from file
+python downloader.py --headful "https://www.mediafire.com/file/..."  # Visible mode
 ```
 
-**Multiple URLs:**
-```bash
-python {baseDir}/downloader.py "https://www.mediafire.com/file/ex1/file1.zip" "https://ouo.io/WU3GDY" --headful
-```
+---
 
-**Using a File Input (Batch Download):**
-```bash
-python {baseDir}/downloader.py -f urls.txt --headful
-```
+## 🛠️ Troubleshooting
 
-**Piping URLs via stdin:**
-```bash
-cat urls.txt | python {baseDir}/downloader.py --headful
-```
+- **No progress bar** – Ensure `tqdm` is installed.
+- **Folder enumeration fails** – Folder must be public; private folders are not supported.
+- **Playwright errors** – Re‑run `python -m playwright install chromium`.
+
+---
+
+Enjoy fast, transparent MediaFire downloads with clear progress and folder support!
